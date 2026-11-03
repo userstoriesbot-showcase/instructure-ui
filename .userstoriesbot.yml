@@ -1,0 +1,27 @@
+# Showcase fork only (never part of an upstream pull request).
+version: 1
+app:
+  # The bootstrap steps run one after another (bootstrap runs the Babel and tsc builds in
+  # parallel), then the docs built statically and unminified: the minifier and one parse worker
+  # per host CPU each push the build past the 3 GB container, so taskset keeps the parser in process.
+  install: >-
+    pnpm install --frozen-lockfile
+    && pnpm run build:themes
+    && pnpm --filter @instructure/ui-icons prepare-build
+    && pnpm --filter @instructure/ui-codemods generate:versioned-exports
+    && NODE_ENV=production pnpm run build
+    && pnpm run build:types
+    && pnpm run build:tokens
+    && (cd packages/__docs__ && pnpm run build:scripts:ts
+    && $(taskset -c 0,1 true >/dev/null 2>&1 && echo taskset -c 0,1) node lib/build-docs.mjs
+    && NODE_ENV=production npx webpack --mode=production --no-optimization-minimize)
+  static: packages/__docs__/__build__
+  env:
+    CYPRESS_INSTALL_BINARY: "0"
+  url: http://localhost:{port}
+  readyPath: /
+  readyStatus: 200
+  runtime: node22
+demo:
+  maxVideos: 1
+  beforePass: true
